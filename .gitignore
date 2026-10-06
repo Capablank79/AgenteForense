@@ -1,0 +1,16 @@
+casos/
+.pytest_cache/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+*.E01
+*.E02
+*.Ex01
+*.raw
+*.dd
+*.img
+
+*.log
