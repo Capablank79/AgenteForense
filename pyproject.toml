@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agente_forense"
+version = "0.1.0"
+description = "Agente Forense Local para Windows"
+readme = "RECONSTRUCTION_STATUS.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+agente_forense = "agente_forense.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

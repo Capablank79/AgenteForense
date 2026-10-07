@@ -49,7 +49,7 @@ Sistema operativo objetivo:
 
 `Windows`
 
-Layout físico del entorno:
+Layout físico del entorno (Actualizado tras migración desde entorno histórico G:\ a J:\):
 
 ```text
 J:\AgenteForense\
@@ -57,6 +57,9 @@ J:\AgenteForense\
 ├── ewftools-x64\         ← Herramientas EWF (EWFTOOLS_ROOT)
 └── OllamaModels\         ← Almacén de modelos Ollama (OLLAMA_MODELS_ROOT)
 ```
+
+**Nota histórica de migración de entorno:**
+El proyecto originalmente operaba bajo el punto de montaje `G:\AgenteForense`. Debido a un fallo físico de disco, el entorno operativo actual se reubicó permanentemente en la unidad `J:\AgenteForense`. Las referencias históricas en documentos de Sprints anteriores conservan la notación `G:\` como registro de auditoría documental, pero la configuración operacional activa debe resolver exclusivamente sobre `J:\`.
 
 Directorio raíz de instalación:
 

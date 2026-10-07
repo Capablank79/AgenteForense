@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: agente_forense
+Version: 0.1.0
+Summary: Agente Forense Local para Windows
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
+# RECONSTRUCTION_STATUS.md
+
+# Estado Oficial de Reconstrucción Técnica — AGENTE FORENSE
+
+```yaml
+reconstruction_mode: FROM_SCRATCH
+source_code_recovered: false
+historical_tests_recovered: false
+documentation_recovered: true
+git_baseline_commit: b9f3f97
+repository_remote: https://github.com/Capablank79/AgenteForense.git
+current_reconstruction_sprint: R00
+reconstruction_timestamp: 2026-10-06T15:30:00-03:00
+```
+
+---
+
+## 1. Entorno de Desarrollo y Ejecución
+
+- **Sistema Operativo:** Windows
+- **Python Detectado:** Python 3.12.9 (`C:\Users\JLLV\AppData\Local\Programs\Python\Python312\python.exe`)
+- **Python Launcher:** Disponible (`py -3.12`)
+- **Entorno Virtual Local:** `.venv` creado en la raíz del proyecto (`J:\AgenteForense\AgenteForense\.venv`)
+- **Pytest:** pytest 9.1.1 instalado en `.venv`
+
+---
+
+## 2. Verificación de Rutas y Reconciliación G: / J:
+
+- **PROJECT_REPOSITORY_ROOT:** `J:\AgenteForense\AgenteForense` (Existe: `true`, Git Root: `true`)
+- **CASE_DATA_ROOT:** `J:\AgenteForense\AgenteForense\casos` (Existe: `true`, Excluido de Git: `true`)
+- **EWF_TOOLS_ROOT:** `J:\AgenteForense\ewftools-x64` (Existe: `true`)
+- **OLLAMA_MODELS_ROOT:** `J:\AgenteForense\OllamaModels` (Existe: `true`)
+- **Verificación G:\AgenteForense:** `False` (La unidad/ruta no existe en el sistema actual)
+
+**Conclusión de Rutas:** La discrepancia se debe a un cambio físico de la unidad de almacenamiento (`G:\` → `J:\`). Se documentó en `PROMPT_MAESTRO.md` sin alterar los Sprints históricos que sirven como auditoría de requisitos.
+
+---
+
+## 3. Estado de la Suite de Tests
+
+- **Suite Histórica:** `LOST` (0 tests recuperados)
+- **Nueva Suite (`RECONSTRUCTION_TEST_SUITE`):** 9 tests creados en `tests/`
+- **Módulos Probados:** Import principal, Entrypoint mínimo, Estados base, Excepciones base, Protección de rutas, Exclusión de artefactos en Git, Exclusión de `casos/` en Git, Ausencia de dependencias forenses.
+- **Resultado:** 9 passed.
+
+---
+
+## 4. Garantías Forenses y Seguridad
+
+- `PhysicalDriveN` accedido: **NO**
+- Herramientas forenses ejecutadas (`ewfacquire`, `ewfverify`, `AXIOM`, `FTK`): **NO**
+- OCR / Ollama ejecutados: **NO**
+- Árbol `casos/` modificado o recorrido recursivamente: **NO**
+- Artefactos forenses o evidencia versionada en Git: **NO**
+- Secretos versionados: **NINGUNO**
+
+---
+
+## 5. Estado Final alcanzado en Sprint R00
+
+```text
+RECONSTRUCTION_BASELINE_READY
+```

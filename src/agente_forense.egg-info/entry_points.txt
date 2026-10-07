@@ -1,0 +1,2 @@
+[console_scripts]
+agente_forense = agente_forense.__main__:main
