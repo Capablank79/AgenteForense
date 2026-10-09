@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Casos — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2>Listado de Casos Registrados</h2>
+    <a href="/cases/new" class="btn">Crear Nuevo Caso</a>
+</div>
+
+<div class="card">
+    {% if cases %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>RUC</th>
+                    <th>Unidad Solicitante</th>
+                    <th>Estado</th>
+                    <th>Fecha Creación</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in cases %}
+                <tr>
+                    <td><code>{{ c.id }}</code></td>
+                    <td><strong>{{ c.ruc or 'S/RUC' }}</strong></td>
+                    <td>{{ c.requesting_unit or '-' }}</td>
+                    <td><span class="badge badge-ok">{{ c.status }}</span></td>
+                    <td>{{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '-' }}</td>
+                    <td><a href="/cases/{{ c.id }}" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">Ver Detalle</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div style="text-align: center; padding: 2rem;">
+            <p style="color: #64748b; font-size: 1.1rem; font-weight: 500;">No existen casos registrados.<br>Cree un nuevo caso para comenzar.</p>
+            <a href="/cases/new" class="btn" style="margin-top: 1rem;">Crear Nuevo Caso</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Error — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<h2>Error</h2>
+
+<div class="card" style="border-left: 4px solid #ef4444;">
+    <h3>Código de Error: {{ error_code }}</h3>
+    <p>{{ message }}</p>
+    <a href="/" class="btn">Volver al Dashboard</a>
+</div>
+{% endblock %}

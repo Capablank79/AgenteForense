@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Adquisiciones — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<h2>Trabajos de Adquisición Físico-Forense (E01)</h2>
+
+<div class="card">
+    {% if jobs %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Trabajo</th>
+                    <th>Caso / DSM</th>
+                    <th>Bloqueador / Origen</th>
+                    <th>Estado Orquestación</th>
+                    <th>PID Binario</th>
+                    <th>Inicio</th>
+                    <th>Exit Code</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr>
+                    <td><code>{{ job.id }}</code></td>
+                    <td>{{ job.case_id }}<br/><small style="color: #64748b;">DSM: {{ job.dsm_id }}</small></td>
+                    <td><strong>{{ job.blocker_id or '-' }}</strong><br/><code style="font-size: 0.8rem;">{{ job.source_device }}</code></td>
+                    <td><span class="badge badge-ok">{{ job.status }}</span></td>
+                    <td>{{ job.process_id or '-' }}</td>
+                    <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') if job.started_at else '-' }}</td>
+                    <td>{{ job.exit_code if job.exit_code is not none else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #64748b;">No hay trabajos de adquisición registrados en PostgreSQL.</p>
+    {% endif %}
+</div>
+{% endblock %}

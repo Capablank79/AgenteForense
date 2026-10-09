@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Hardware & Write-Blockers — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h2>Topología de Bloqueadores de Escritura (Write-Blockers)</h2>
+    <button id="btn-scan-hardware" class="btn" onclick="triggerScanHardware()">ACTUALIZAR HARDWARE</button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem;">
+    {% for item in card_items %}
+    <div class="card" id="card-{{ item.channel.blocker_id }}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <h3 style="margin-top: 0; color: #0f172a;">{{ item.channel.operator_label or item.channel.blocker_id }}</h3>
+            <span class="badge badge-ok">CONFIRMED</span>
+        </div>
+        <p><strong>Alias / Display:</strong> {{ item.channel.display_name }}</p>
+        <p><strong>Fabricante:</strong> {{ item.channel.manufacturer or '-' }} | <strong>Modelo:</strong> {{ item.channel.model or '-' }}</p>
+        <p><strong>Número de Serie:</strong> <code>{{ item.channel.serial_number or '-' }}</code></p>
+        <p><strong>Bus de Conexión:</strong> <span class="badge" style="background: #e2e8f0; color: #334155;">{{ item.channel.bus or '-' }}</span></p>
+        <p><strong>PnP Device ID:</strong> <code style="font-size: 0.75rem; word-break: break-all;">{{ item.channel.pnp_device_id or '-' }}</code></p>
+        
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 1rem 0;"/>
+        
+        <h4 style="margin-bottom: 0.5rem; color: #334155;">Medio Adjunto Conectado</h4>
+        {% if item.attachment %}
+            <table style="font-size: 0.9rem; margin-top: 0;">
+                <tr><th>PhysicalDrive:</th><td><strong><code>{{ item.attachment.physical_drive }}</code></strong></td></tr>
+                <tr><th>Friendly Name:</th><td>{{ item.attachment.friendly_name or '-' }}</td></tr>
+                <tr><th>Serie Disco:</th><td><code>{{ item.attachment.disk_serial or '-' }}</code></td></tr>
+                <tr><th>Tamaño Bytes:</th><td>{{ item.attachment.size_bytes or '-' }}</td></tr>
+                <tr><th>Read Only (R07.1):</th>
+                    <td>
+                        {% if item.attachment.is_read_only %}
+                            <span class="badge badge-ok">YES (True)</span>
+                        {% else %}
+                            <span class="badge badge-err">NO (False)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr><th>Sistema / Boot:</th>
+                    <td>
+                        {% if item.attachment.is_system or item.attachment.is_boot %}
+                            <span class="badge badge-err">BLOCKED (System/Boot)</span>
+                        {% else %}
+                            <span class="badge badge-ok">CLEAN (False)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
+        {% else %}
+            <p style="color: #64748b; italic;">No se detecta medio físico adjunto en este canal.</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+async function triggerScanHardware() {
+    const btn = document.getElementById('btn-scan-hardware');
+    btn.disabled = true;
+    btn.innerText = 'Escaneando hardware...';
+    try {
+        const resp = await csrfFetch('/api/system/write-blockers/scan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            alert('Error al escanear hardware');
+            btn.disabled = false;
+            btn.innerText = 'ACTUALIZAR HARDWARE';
+        }
+    } catch(e) {
+        alert('Error de conexión al servidor');
+        btn.disabled = false;
+        btn.innerText = 'ACTUALIZAR HARDWARE';
+    }
+}
+</script>
+{% endblock %}

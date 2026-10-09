@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Sistema — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<h2>Estado del Sistema</h2>
+
+<div class="card">
+    <h3>Configuración y Plataforma</h3>
+    <table style="width: auto;">
+        <tr><th>Versión Aplicación:</th><td><code>{{ app_version }}</code></td></tr>
+        <tr><th>Modo Runtime:</th><td><code>DEVELOPMENT_LOCAL</code></td></tr>
+        <tr><th>Web Host Listener:</th><td><code>{{ web_host }}</code></td></tr>
+        <tr><th>Web Port:</th><td><code>{{ web_port }}</code></td></tr>
+        <tr><th>PostgreSQL Host:</th><td><code>{{ db_host }}</code></td></tr>
+        <tr><th>PostgreSQL Port:</th><td><code>{{ db_port }}</code></td></tr>
+        <tr><th>Base de Datos:</th><td><code>{{ db_name }}</code></td></tr>
+        <tr><th>Usuario Rol BD:</th><td><code>{{ db_user }}</code></td></tr>
+        <tr><th>FileStore Staging:</th><td><code>runtime/staging/</code></td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h3>Verificación de Binarios y Componentes Core</h3>
+    <table style="width: auto;">
+        <tr><th>ewfacquire Estado:</th><td><span class="badge badge-ok">{{ ewf_info.status or 'N/A' }}</span></td></tr>
+        <tr><th>ewfacquire Ruta:</th><td><code>{{ ewf_info.path or '-' }}</code></td></tr>
+        <tr><th>ewfacquire SHA256:</th><td><code style="font-size: 0.8rem;">{{ ewf_info.hash or '-' }}</code></td></tr>
+        <tr><th>Write-Blockers Detectados:</th><td><strong>{{ wb_count }}</strong></td></tr>
+        <tr><th>Último Escaneo Hardware:</th><td>{{ last_scan.strftime('%Y-%m-%d %H:%M:%S') if last_scan else 'Nunca' }}</td></tr>
+    </table>
+</div>
+{% endblock %}

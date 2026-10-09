@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle Caso — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<h2>Detalle de Caso</h2>
+
+<div class="card">
+    <table style="width: auto;">
+        <tr><th>ID Caso:</th><td><code>{{ case.id }}</code></td></tr>
+        <tr><th>RUC:</th><td><strong>{{ case.ruc or 'No especificado' }}</strong></td></tr>
+        <tr><th>Unidad Solicitante:</th><td>{{ case.requesting_unit or '-' }}</td></tr>
+        <tr><th>RUT Solicitante:</th><td>{{ case.requesting_rut or '-' }}</td></tr>
+        <tr><th>Tipo Solicitud:</th><td>{{ case.request_type or '-' }}</td></tr>
+        <tr><th>Estado Actual:</th><td><span class="badge badge-ok">{{ case.status }}</span> (Versión: {{ orchestration_context.state_version if orchestration_context else 1 }})</td></tr>
+        <tr><th>Reconciliación case.json:</th>
+            <td>
+                {% if orchestration_context and orchestration_context.reconciliation_match %}
+                    <span class="badge badge-ok">MATCH</span>
+                {% else %}
+                    <span class="badge badge-error">MISMATCH / WARNING</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr><th>Creado:</th><td>{{ case.created_at }}</td></tr>
+        <tr><th>Actualizado:</th><td>{{ case.updated_at }}</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h3>Acciones Disponibles de Orquestación</h3>
+    {% if allowed_actions %}
+        <ul>
+            {% for act in allowed_actions %}
+                <li>
+                    <strong>{{ act.action }}</strong>: 
+                    {% if act.allowed %}
+                        <span style="color: green; font-weight: bold;">[PERMITIDA]</span>
+                        {% if act.requires_confirmation %} (Requiere Confirmación Humana Gate){% endif %}
+                    {% else %}
+                        <span style="color: red; font-weight: bold;">[BLOQUEADA]</span> — <em>{{ act.reason }}</em>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>
+
+{% if pending_confirmations %}
+<div class="card" style="border: 2px solid #f59e0b; background-color: #fffbeb;">
+    <h3 style="color: #b45309;">Confirmaciones Humanas Pendientes (Human Gate)</h3>
+    <ul>
+        {% for c in pending_confirmations %}
+            <li>
+                ID: <code>{{ c.confirmation_id }}</code> — Acción Solicitada: <strong>{{ c.requested_action }}</strong><br/>
+                <em>{{ c.summary }}</em>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3>Historial de Eventos del Caso ({{ case_events|length if case_events else 0 }})</h3>
+    {% if case_events %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Evento</th>
+                    <th>Estado Anterior</th>
+                    <th>Nuevo Estado</th>
+                    <th>Resultado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ev in case_events %}
+                    <tr>
+                        <td>{{ ev.created_at }}</td>
+                        <td><strong>{{ ev.event_type }}</strong></td>
+                        <td>{{ ev.previous_state or '-' }}</td>
+                        <td>{{ ev.new_state or '-' }}</td>
+                        <td>{{ ev.result }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #64748b;">No hay eventos registrados para este caso.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>IDENTIFICACIÓN FOTOGRÁFICA ASISTIDA</h3>
+    <p>Agente de Identificación mediante Windows OCR es-ES, Extracción Determinista y Qwen Textual (sin analizador de visión local).</p>
+    <div id="photo-identification-panel" style="padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px;">
+        <p><strong>Estado Fotográfico:</strong> <span class="badge badge-ok">IDENTIFICATION_PENDING</span></p>
+        <p><em>Utilice los endpoints API de identificación para staging de fotos, OCR es-ES, extracción, revisión humana y renombrado determinístico seguro.</em></p>
+    </div>
+</div>
+
+<div class="card">
+    <h3>SELECCIÓN DE BLOQUEADOR DE ADQUISICIÓN (WRITE-BLOCKER)</h3>
+    <p>Seleccione el canal de hardware con relación <code>CONFIRMED</code> para vincular a esta especie/DSM. No se permite la selección directa de PhysicalDrive sin bloqueador.</p>
+    
+    <div id="wb-selection-container" style="margin-top: 1rem;">
+        <p>Cargando topología de bloqueadores disponibles...</p>
+    </div>
+</div>
+
+<div class="card">
+    <h3>ADQUISICIÓN FÍSICA E01 (EWF TOOLS)</h3>
+    <p>Motor de Adquisición Forense E01 mediante <code>ewfacquire.exe</code> (EnCase 6, Hash SHA256, Single File -S 0, Fail-Closed).</p>
+    <div id="acquisition-panel" style="padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px;">
+        <p><strong>Estado del Binario ewfacquire:</strong> <span class="badge badge-ok" id="ewf-status">VERIFICANDO...</span></p>
+        <p><strong>Verificación de Firma SHA256:</strong> <code id="ewf-sha256">3cae1f37ece0b88746dc17810198b0171f4ca00ecb9c328e756baab5682e6791</code></p>
+        <p><em>El proceso de adquisición requiere revalidación en caliente R07.1 del disco de origen y confirmación humana explícita <code>"ADQUIRIR"</code> (Human Gate).</em></p>
+    </div>
+</div>
+
+<div class="card">
+    <h3>NUEs Asociadas ({{ nues|length }})</h3>
+    {% if nues %}
+        <ul>
+            {% for n in nues %}
+                <li>NUE: <strong>{{ n.nue_number }}</strong> — Status: {{ n.status }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p style="color: #64748b;">No hay NUEs asociadas registradas.</p>
+    {% endif %}
+</div>
+
+<script>
+const caseId = "{{ case.id }}";
+// Asumimos dsmId principal o primer DSM registrado
+let currentDsmId = null;
+
+async function loadWriteBlockers() {
+    const container = document.getElementById('wb-selection-container');
+    try {
+        const resp = await csrfFetch('/api/system/write-blockers');
+        if (!resp.ok) {
+            container.innerHTML = '<p style="color: red;">Error al obtener la topología de bloqueadores.</p>';
+            return;
+        }
+        const data = await resp.json();
+        const channels = data.channels || [];
+        const attachments = data.attachments || [];
+
+        if (channels.length === 0) {
+            container.innerHTML = '<p>No se encontraron bloqueadores de escritura registrados.</p>';
+            return;
+        }
+
+        let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+        channels.forEach(ch => {
+            const att = attachments.find(a => a.blocker_id === ch.blocker_id);
+            const isConfirmed = att && att.relation_status === 'CONFIRMED' && att.is_read_only;
+            
+            html += `
+                <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; background: ${isConfirmed ? '#f8fafc' : '#fef2f2'};">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>[ ${ch.operator_label || ch.blocker_id} ] ${ch.display_name}</strong>
+                            <br/><small style="color: #475569;">Bus: ${ch.bus || '-'} | Serial: ${ch.serial_number || '-'}</small>
+                            ${att ? `<br/><span style="color: #0f172a; font-weight: 500;">PhysicalDrive: ${att.physical_drive} — ReadOnly: ${att.is_read_only ? 'YES' : 'NO'}</span>` : ''}
+                        </div>
+                        <div>
+                            ${isConfirmed ? 
+                                `<button class="btn" onclick="selectBlocker('${ch.blocker_id}')">SELECCIONAR CANAL</button>` : 
+                                `<span class="badge badge-err">NO DISPONIBLE</span>`}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    } catch(e) {
+        container.innerHTML = '<p style="color: red;">Error al conectar con la API de hardware.</p>';
+    }
+}
+
+async function selectBlocker(blockerId) {
+    // Si no hay dsmId activo, usar un UUID ficticio o representativo para la demo
+    const dsmId = currentDsmId || "00000000-0000-0000-0000-000000000001";
+    try {
+        const resp = await csrfFetch(`/api/cases/${caseId}/dsms/${dsmId}/write-blocker/select`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blocker_id: blockerId, operator: 'HUMAN_OPERATOR' })
+        });
+        if (resp.ok) {
+            const result = await resp.json();
+            alert(`Bloqueador ${blockerId} vinculado exitosamente con origen ${result.physical_drive}`);
+            window.location.reload();
+        } else {
+            const err = await resp.json();
+            alert(`Error al seleccionar bloqueador: ${err.detail ? err.detail.message : 'Error desconocido'}`);
+        }
+    } catch(e) {
+        alert('Error de red al procesar la selección');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadWriteBlockers);
+</script>
+{% endblock %}

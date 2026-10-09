@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Auditoría — AGENTE FORENSE{% endblock %}
+
+{% block content %}
+<h2>Registro Central de Auditoría (Append-Only)</h2>
+
+<div class="alert-info">
+    El registro de auditoría en AGENTE FORENSE es estrictamente de solo lectura (Read-Only) desde la interfaz web. No se permiten modificaciones ni eliminación de registros.
+</div>
+
+<div class="card">
+    {% if events %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha / Hora</th>
+                    <th>Actor</th>
+                    <th>Módulo</th>
+                    <th>Herramienta</th>
+                    <th>Tipo Evento</th>
+                    <th>Acción</th>
+                    <th>Resultado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ev in events %}
+                <tr>
+                    <td>{{ ev.created_at.strftime('%Y-%m-%d %H:%M:%S') if ev.created_at else '-' }}</td>
+                    <td>{{ ev.actor }}</td>
+                    <td>{{ ev.module }}</td>
+                    <td>{{ ev.tool }}</td>
+                    <td>{{ ev.event_type }}</td>
+                    <td>{{ ev.action }}</td>
+                    <td><span class="badge badge-ok">{{ ev.result }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #64748b;">No hay registros de auditoría almacenados.</p>
+    {% endif %}
+</div>
+{% endblock %}

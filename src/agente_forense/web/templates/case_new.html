@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}Revisión del Oficio Petitorio — Agente Forense{% endblock %}
+
+{% block content %}
+<h2>Revisión del Oficio Petitorio</h2>
+
+<div class="alert-info">
+    <strong>Flujo Operativo de Revisión Humana:</strong> Suba un Oficio Petitorio (.pdf, .jpg, .jpeg, .png). El sistema procesará el hash SHA-256, ejecutará la extracción OCR/estructurada y desplegará la grilla de revisión humana en español para confirmar, corregir o marcar los campos y verificar conflictos antes de la aprobación final.
+</div>
+
+<div class="card">
+    <h3>1. Ingesta y Staging del Petitorio</h3>
+    <form id="petitionStageForm">
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Seleccionar Oficio Petitorio:</label>
+            <input type="file" id="petitionFile" accept=".pdf,.jpg,.jpeg,.png" required style="display: block;">
+        </div>
+        <button type="submit" class="btn" id="btnStage">Subir y Procesar Petitorio</button>
+    </form>
+    <div id="stageResult" style="margin-top: 1rem;"></div>
+</div>
+
+<div class="card" id="reviewCard" style="display: none; margin-top: 1.5rem;">
+    <h3>2. Grilla de Revisión Humana</h3>
+    
+    <div id="conflictsContainer" style="display: none; margin-bottom: 1.5rem;"></div>
+
+    <form id="humanReviewForm">
+        <!-- 6.1 Datos del documento -->
+        <fieldset style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;">
+            <legend style="font-weight: 700; color: #1e293b; padding: 0 0.5rem;">Datos del documento</legend>
+            <div id="sectionDocDetails" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"></div>
+        </fieldset>
+
+        <!-- 6.2 Datos de la causa -->
+        <fieldset style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;">
+            <legend style="font-weight: 700; color: #1e293b; padding: 0 0.5rem;">Datos de la causa</legend>
+            <div id="sectionCaseDetails" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"></div>
+        </fieldset>
+
+        <!-- 6.3 Solicitante -->
+        <fieldset style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;">
+            <legend style="font-weight: 700; color: #1e293b; padding: 0 0.5rem;">Solicitante</legend>
+            <div id="sectionApplicantDetails" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"></div>
+        </fieldset>
+
+        <!-- 6.4 Evidencias declaradas -->
+        <fieldset style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;">
+            <legend style="font-weight: 700; color: #1e293b; padding: 0 0.5rem;">Evidencias declaradas</legend>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;" id="evidenceTable">
+                    <thead>
+                        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                            <th style="padding: 0.5rem;">NUE</th>
+                            <th style="padding: 0.5rem;">Cantidad</th>
+                            <th style="padding: 0.5rem;">Descripción</th>
+                            <th style="padding: 0.5rem;">Marca</th>
+                            <th style="padding: 0.5rem;">Modelo</th>
+                            <th style="padding: 0.5rem;">Número de serie</th>
+                            <th style="padding: 0.5rem;">Origen</th>
+                            <th style="padding: 0.5rem;">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="evidenceTbody"></tbody>
+                </table>
+            </div>
+            <button type="button" class="btn" id="btnAddEvidence" style="margin-top: 0.75rem; background-color: #475569;">+ Agregar evidencia</button>
+        </fieldset>
+
+        <!-- 6.5 Diligencias solicitadas -->
+        <fieldset style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;">
+            <legend style="font-weight: 700; color: #1e293b; padding: 0 0.5rem;">Diligencias solicitadas</legend>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;" id="actionsTable">
+                    <thead>
+                        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                            <th style="padding: 0.5rem;">Orden</th>
+                            <th style="padding: 0.5rem;">Texto fuente / Descripción</th>
+                            <th style="padding: 0.5rem;">Acción normalizada</th>
+                            <th style="padding: 0.5rem;">Origen</th>
+                            <th style="padding: 0.5rem;">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="actionsTbody"></tbody>
+                </table>
+            </div>
+            <button type="button" class="btn" id="btnAddAction" style="margin-top: 0.75rem; background-color: #475569;">+ Agregar diligencia</button>
+        </fieldset>
+
+        <!-- 6.6 Actas y anexos -->
+        <fieldset style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 1rem; margin-bottom: 1.5rem;">
+            <legend style="font-weight: 700; color: #1e293b; padding: 0 0.5rem;">Actas y anexos</legend>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;" id="attachmentsTable">
+                    <thead>
+                        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                            <th style="padding: 0.5rem;">Tipo</th>
+                            <th style="padding: 0.5rem;">Descripción</th>
+                            <th style="padding: 0.5rem;">N° Referencia</th>
+                            <th style="padding: 0.5rem;">Recibido físicamente</th>
+                            <th style="padding: 0.5rem;">Origen</th>
+                            <th style="padding: 0.5rem;">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attachmentsTbody"></tbody>
+                </table>
+            </div>
+            <button type="button" class="btn" id="btnAddAttachment" style="margin-top: 0.75rem; background-color: #475569;">+ Agregar acta o anexo</button>
+        </fieldset>
+
+        <div style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem;">
+            <button type="submit" class="btn" id="btnSubmitReview" style="background-color: #2563eb;">Guardar Revisión Humana</button>
+            <button type="button" class="btn" id="btnApprovePetition" style="background-color: #16a34a;">Aprobar Oficio Petitorio</button>
+        </div>
+    </form>
+    <div id="reviewResult" style="margin-top: 1rem;"></div>
+</div>
+
+<div class="card" id="draftCard" style="display: none; margin-top: 1.5rem;">
+    <h3>3. Generar CaseStructureDraft (Estructura Preliminar)</h3>
+    <div class="alert-info" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; color: #92400e; padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 4px;">
+        <strong>Advertencia Importante:</strong> La estructura física de especies y dispositivos de almacenamiento aún debe ser confirmada.
+    </div>
+    <p>Una vez aprobado el Oficio Petitorio, puede generar la propuesta estructurada del caso. Esto <strong>NO</strong> creará el caso definitivo en la base de datos ni registrará topología física.</p>
+    <button type="button" class="btn" id="btnBuildDraft">Generar estructura preliminar del caso</button>
+    <div id="draftResult" style="margin-top: 1rem;"></div>
+</div>
+
+<script>
+let currentDocId = null;
+let currentExtraction = null;
+
+const FIELD_LABELS = {
+    "petition_number": "Número de oficio",
+    "petition_date": "Fecha del oficio",
+    "city": "Ciudad",
+    "log_reference": "Número de bitácora",
+    "ruc": "RUC",
+    "crime_context": "Delito / contexto",
+    "other_references": "Otras referencias",
+    "requesting_unit": "Unidad solicitante",
+    "prosecutor_office": "Fiscalía",
+    "prosecutor_name": "Fiscal",
+    "investigator_name": "Encargado de la investigación",
+    "investigator_rank": "Cargo / grado",
+    "contact_details": "Datos de contacto",
+    "addressee": "Destinatario",
+    "informed_copies": "Copias informadas",
+    "nue": "NUE"
+};
+
+const STATUS_LABELS = {
+    "EXTRACTED": "Extraído",
+    "OBSERVED": "Observado",
+    "UNCERTAIN": "Dudoso",
+    "CONFLICT": "Conflicto",
+    "CONFIRMED": "Confirmado",
+    "CORRECTED_BY_HUMAN": "Corregido por el operador",
+    "NOT_FOUND": "No encontrado",
+    "NOT_APPLICABLE": "No aplica"
+};
+
+const FIELD_GROUPS = {
+    doc: ["petition_number", "petition_date", "city", "log_reference"],
+    case: ["ruc", "crime_context", "other_references"],
+    applicant: ["requesting_unit", "prosecutor_office", "prosecutor_name", "investigator_name", "investigator_rank", "contact_details", "addressee", "informed_copies"]
+};
+
+document.getElementById('petitionStageForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('petitionFile');
+    const stageResult = document.getElementById('stageResult');
+    if (!fileInput.files.length) return;
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    stageResult.innerHTML = '<p>Procesando petitorio (SHA-256 / OCR / Extracción)...</p>';
+
+    try {
+        const res = await csrfFetch('/api/petitions/stage', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentDocId = data.document_id;
+            stageResult.innerHTML = `<p style="color: green;">✔ Petitorio procesado exitosamente. SHA-256: <code>${data.sha256}</code> | Estado: <code>${data.processing_status}</code></p>`;
+            await loadExtractionForReview(currentDocId);
+        } else {
+            stageResult.innerHTML = `<p style="color: red;">❌ Error: ${data.detail?.message || JSON.stringify(data)}</p>`;
+        }
+    } catch (err) {
+        stageResult.innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+    }
+});
+
+async function loadExtractionForReview(docId) {
+    const res = await csrfFetch(`/api/petitions/${docId}/extraction`);
+    const ext = await res.json();
+    currentExtraction = ext;
+
+    document.getElementById('reviewCard').style.display = 'block';
+
+    // Render Conflictos
+    const confContainer = document.getElementById('conflictsContainer');
+    if (ext.conflicts && ext.conflicts.length > 0) {
+        confContainer.style.display = 'block';
+        let confHtml = `<div style="background: #fee2e2; border: 1px solid #f87171; padding: 1rem; border-radius: 6px;">
+            <strong style="color: #991b1b; font-size: 1.05rem;">Conflictos detectados por el sistema (${ext.conflicts.length}):</strong><ul style="margin-top: 0.5rem; margin-bottom: 0;">`;
+        ext.conflicts.forEach(c => {
+            confHtml += `<li style="margin-bottom: 0.25rem;"><strong>${c.conflict_type}</strong> (Campo: ${FIELD_LABELS[c.field_name] || c.field_name}): ${c.description}</li>`;
+        });
+        confHtml += `</ul></div>`;
+        confContainer.innerHTML = confHtml;
+    } else {
+        confContainer.style.display = 'none';
+        confContainer.innerHTML = '';
+    }
+
+    // Render Campos por Sección
+    renderSectionFields('sectionDocDetails', FIELD_GROUPS.doc, ext.fields);
+    renderSectionFields('sectionCaseDetails', FIELD_GROUPS.case, ext.fields);
+    renderSectionFields('sectionApplicantDetails', FIELD_GROUPS.applicant, ext.fields);
+
+    // Render Listas Repetibles
+    renderEvidenceTable(ext.evidence_items);
+    renderActionsTable(ext.requested_actions);
+    renderAttachmentsTable(ext.attachments);
+
+    if (ext.review_status === "APPROVED") {
+        document.getElementById('draftCard').style.display = 'block';
+        document.getElementById('reviewResult').innerHTML = `<p style="color: green; font-weight: 600;">✔ Oficio Petitorio aprobado</p>`;
+    }
+}
+
+function renderSectionFields(containerId, fieldNames, fieldsList) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    fieldNames.forEach(fName => {
+        let f = fieldsList.find(item => item.field_name === fName);
+        if (!f) {
+            f = {
+                field_name: fName,
+                value: null,
+                normalized_value: null,
+                status: "NOT_FOUND",
+                provenance: []
+            };
+        }
+
+        const card = document.createElement('div');
+        card.style.border = '1px solid #e2e8f0';
+        card.style.borderRadius = '6px';
+        card.style.padding = '0.75rem';
+        card.style.background = '#f8fafc';
+
+        const labelEs = FIELD_LABELS[f.field_name] || f.field_name;
+        const statusEs = STATUS_LABELS[f.status] || f.status;
+        const provText = f.provenance && f.provenance.length > 0 
+            ? f.provenance.map(p => `Pág. ${p.page_index + 1}`).join(', ') 
+            : 'Sin fuente directa';
+
+        let selConfirm = (f.status === 'CONFIRMED') ? 'selected' : '';
+        let selCorrect = (f.status === 'CORRECTED_BY_HUMAN') ? 'selected' : '';
+        let selNotFound = (f.status === 'NOT_FOUND') ? 'selected' : '';
+        let selNotApp = (f.status === 'NOT_APPLICABLE') ? 'selected' : '';
+
+        card.innerHTML = `
+            <div style="font-weight: 600; color: #0f172a; margin-bottom: 0.25rem;">${labelEs}</div>
+            <div style="font-size: 0.85rem; color: #475569;">Valor observado (OCR): <em style="color: #1e293b;">${f.value !== null && f.value !== undefined ? f.value : '(vacío)'}</em></div>
+            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;">Estado: <strong>${statusEs}</strong> | Proveniencia: ${provText}</div>
+            <div>
+                <select name="action_${f.field_name}" class="field-action-select" data-field="${f.field_name}" style="padding: 0.25rem; font-size: 0.85rem;">
+                    <option value="CONFIRM" ${selConfirm}>Confirmar</option>
+                    <option value="CORRECT" ${selCorrect}>Corregir</option>
+                    <option value="MARK_NOT_FOUND" ${selNotFound}>Marcar no encontrado</option>
+                    <option value="MARK_NOT_APPLICABLE" ${selNotApp}>Marcar no aplica</option>
+                </select>
+                <input type="text" name="val_${f.field_name}" class="field-val-input" placeholder="Valor corregido" value="${f.value || ''}" style="margin-top: 0.25rem; width: 100%; padding: 0.3rem; box-sizing: border-box; font-size: 0.85rem;">
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function renderEvidenceTable(items) {
+    const tbody = document.getElementById('evidenceTbody');
+    tbody.innerHTML = '';
+    (items || []).forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #e2e8f0';
+        const sourceLabel = item.source === 'HUMAN_INPUT' ? 'Entrada humana' : 'OCR';
+        tr.innerHTML = `
+            <td style="padding: 0.4rem;"><input type="text" value="${item.nue_number || ''}" class="ev-nue" style="width: 90px;"></td>
+            <td style="padding: 0.4rem;"><input type="number" value="${item.quantity || 1}" class="ev-qty" style="width: 50px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.description_original || ''}" class="ev-desc" style="width: 150px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.brand_declared || ''}" class="ev-brand" style="width: 90px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.model_declared || ''}" class="ev-model" style="width: 90px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.serial_number_declared || ''}" class="ev-serial" style="width: 100px;"></td>
+            <td style="padding: 0.4rem; font-size: 0.8rem; color: #64748b;">${sourceLabel}</td>
+            <td style="padding: 0.4rem;"><button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="this.closest('tr').remove()">Descartar</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById('btnAddEvidence').addEventListener('click', function() {
+    const tbody = document.getElementById('evidenceTbody');
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #e2e8f0';
+    tr.innerHTML = `
+        <td style="padding: 0.4rem;"><input type="text" placeholder="NUE" class="ev-nue" style="width: 90px;"></td>
+        <td style="padding: 0.4rem;"><input type="number" value="1" class="ev-qty" style="width: 50px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="Descripción" class="ev-desc" style="width: 150px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="Marca" class="ev-brand" style="width: 90px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="Modelo" class="ev-model" style="width: 90px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="N° Serie" class="ev-serial" style="width: 100px;"></td>
+        <td style="padding: 0.4rem; font-size: 0.8rem; color: #2563eb;">Entrada humana</td>
+        <td style="padding: 0.4rem;"><button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="this.closest('tr').remove()">Descartar</button></td>
+    `;
+    tbody.appendChild(tr);
+});
+
+function renderActionsTable(items) {
+    const tbody = document.getElementById('actionsTbody');
+    tbody.innerHTML = '';
+    (items || []).forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #e2e8f0';
+        const sourceLabel = item.source === 'HUMAN_INPUT' ? 'Entrada humana' : 'OCR';
+        tr.innerHTML = `
+            <td style="padding: 0.4rem;"><input type="number" value="${item.action_order || idx + 1}" class="act-order" style="width: 50px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.source_text || ''}" class="act-src" style="width: 250px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.normalized_action || ''}" class="act-norm" style="width: 200px;"></td>
+            <td style="padding: 0.4rem; font-size: 0.8rem; color: #64748b;">${sourceLabel}</td>
+            <td style="padding: 0.4rem;"><button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="this.closest('tr').remove()">Descartar</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById('btnAddAction').addEventListener('click', function() {
+    const tbody = document.getElementById('actionsTbody');
+    const tr = document.createElement('tr');
+    const currentCount = tbody.querySelectorAll('tr').length + 1;
+    tr.style.borderBottom = '1px solid #e2e8f0';
+    tr.innerHTML = `
+        <td style="padding: 0.4rem;"><input type="number" value="${currentCount}" class="act-order" style="width: 50px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="Texto de la diligencia" class="act-src" style="width: 250px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="Diligencia normalizada" class="act-norm" style="width: 200px;"></td>
+        <td style="padding: 0.4rem; font-size: 0.8rem; color: #2563eb;">Entrada humana</td>
+        <td style="padding: 0.4rem;"><button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="this.closest('tr').remove()">Descartar</button></td>
+    `;
+    tbody.appendChild(tr);
+});
+
+function renderAttachmentsTable(items) {
+    const tbody = document.getElementById('attachmentsTbody');
+    tbody.innerHTML = '';
+    (items || []).forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #e2e8f0';
+        const sourceLabel = item.source === 'HUMAN_INPUT' ? 'Entrada humana' : 'OCR';
+        const isRec = item.physically_received ? 'checked' : '';
+        tr.innerHTML = `
+            <td style="padding: 0.4rem;"><input type="text" value="${item.attachment_type || 'ACTA'}" class="att-type" style="width: 90px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.description || ''}" class="att-desc" style="width: 200px;"></td>
+            <td style="padding: 0.4rem;"><input type="text" value="${item.reference_number || ''}" class="att-ref" style="width: 120px;"></td>
+            <td style="padding: 0.4rem; text-align: center;"><input type="checkbox" ${isRec} class="att-rec"></td>
+            <td style="padding: 0.4rem; font-size: 0.8rem; color: #64748b;">${sourceLabel}</td>
+            <td style="padding: 0.4rem;"><button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="this.closest('tr').remove()">Descartar</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById('btnAddAttachment').addEventListener('click', function() {
+    const tbody = document.getElementById('attachmentsTbody');
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #e2e8f0';
+    tr.innerHTML = `
+        <td style="padding: 0.4rem;"><input type="text" value="ACTA" class="att-type" style="width: 90px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="Descripción del anexo" class="att-desc" style="width: 200px;"></td>
+        <td style="padding: 0.4rem;"><input type="text" placeholder="N° referencia" class="att-ref" style="width: 120px;"></td>
+        <td style="padding: 0.4rem; text-align: center;"><input type="checkbox" class="att-rec"></td>
+        <td style="padding: 0.4rem; font-size: 0.8rem; color: #2563eb;">Entrada humana</td>
+        <td style="padding: 0.4rem;"><button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="this.closest('tr').remove()">Descartar</button></td>
+    `;
+    tbody.appendChild(tr);
+});
+
+function collectPayload() {
+    const actionSelects = document.querySelectorAll('.field-action-select');
+    const actions = [];
+    actionSelects.forEach(sel => {
+        const fName = sel.getAttribute('data-field');
+        const actType = sel.value;
+        const valInput = document.querySelector(`input[name="val_${fName}"]`);
+        actions.push({
+            field_name: fName,
+            action_type: actType,
+            new_value: valInput ? valInput.value : null
+        });
+    });
+
+    const evRows = document.querySelectorAll('#evidenceTbody tr');
+    const evidenceItems = [];
+    evRows.forEach(tr => {
+        evidenceItems.push({
+            nue_number: tr.querySelector('.ev-nue').value,
+            quantity: parseInt(tr.querySelector('.ev-qty').value) || 1,
+            description_original: tr.querySelector('.ev-desc').value,
+            brand_declared: tr.querySelector('.ev-brand').value,
+            model_declared: tr.querySelector('.ev-model').value,
+            serial_number_declared: tr.querySelector('.ev-serial').value,
+            source: tr.innerHTML.includes('Entrada humana') ? 'HUMAN_INPUT' : 'OCR'
+        });
+    });
+
+    const actRows = document.querySelectorAll('#actionsTbody tr');
+    const requestedActions = [];
+    actRows.forEach(tr => {
+        requestedActions.push({
+            action_order: parseInt(tr.querySelector('.act-order').value) || 1,
+            source_text: tr.querySelector('.act-src').value,
+            normalized_action: tr.querySelector('.act-norm').value,
+            source: tr.innerHTML.includes('Entrada humana') ? 'HUMAN_INPUT' : 'OCR'
+        });
+    });
+
+    const attRows = document.querySelectorAll('#attachmentsTbody tr');
+    const attachments = [];
+    attRows.forEach(tr => {
+        attachments.push({
+            attachment_type: tr.querySelector('.att-type').value,
+            description: tr.querySelector('.att-desc').value,
+            reference_number: tr.querySelector('.att-ref').value,
+            physically_received: tr.querySelector('.att-rec').checked,
+            source: tr.innerHTML.includes('Entrada humana') ? 'HUMAN_INPUT' : 'OCR'
+        });
+    });
+
+    return { actions, evidence_items: evidenceItems, requested_actions: requestedActions, attachments };
+}
+
+document.getElementById('humanReviewForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if (!currentDocId) return;
+
+    const payload = collectPayload();
+
+    try {
+        const res = await csrfFetch(`/api/petitions/${currentDocId}/review`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById('reviewResult').innerHTML = `<p style="color: green;">✔ Revisión registrada correctamente. Estado: <code>${data.review_status}</code></p>`;
+            await loadExtractionForReview(currentDocId);
+        } else {
+            document.getElementById('reviewResult').innerHTML = `<p style="color: red;">❌ Error: ${data.detail?.message || JSON.stringify(data)}</p>`;
+        }
+    } catch (err) {
+        document.getElementById('reviewResult').innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+    }
+});
+
+document.getElementById('btnApprovePetition').addEventListener('click', async function() {
+    if (!currentDocId) return;
+    if (!confirm('¿Confirma la aprobación definitiva del Oficio Petitorio? Esta acción requiere que todos los campos requeridos y conflictos estén completamente verificados.')) return;
+
+    // Primero guardar la revisión
+    const payload = collectPayload();
+    await csrfFetch(`/api/petitions/${currentDocId}/review`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+
+    // Luego intentar aprobar
+    try {
+        const res = await csrfFetch(`/api/petitions/${currentDocId}/approve`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById('reviewResult').innerHTML = `<p style="color: green; font-size: 1.1rem; font-weight: 700;">✔ Oficio Petitorio aprobado exitosamente.</p>`;
+            document.getElementById('draftCard').style.display = 'block';
+            await loadExtractionForReview(currentDocId);
+        } else {
+            document.getElementById('reviewResult').innerHTML = `<p style="color: red; font-size: 1.05rem; font-weight: 600;">❌ Error al aprobar Oficio Petitorio: ${data.detail?.message || JSON.stringify(data)}</p>`;
+        }
+    } catch (err) {
+        document.getElementById('reviewResult').innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+    }
+});
+
+document.getElementById('btnBuildDraft').addEventListener('click', async function() {
+    if (!currentDocId) return;
+    const resDiv = document.getElementById('draftResult');
+    try {
+        const res = await csrfFetch(`/api/petitions/${currentDocId}/build-draft`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (res.ok) {
+            resDiv.innerHTML = `<h4>Estructura preliminar generada (CaseStructureDraft):</h4>
+            <div style="background: #f0fdf4; border: 1px solid #86efac; color: #166534; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem;">
+                <strong>Estado:</strong> <code>${data.status}</code><br>
+                <strong>Nota:</strong> ${data.notes}
+            </div>
+            <pre style="background: #f1f5f9; padding: 1rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>`;
+        } else {
+            resDiv.innerHTML = `<p style="color: red;">❌ Error al generar estructura preliminar: ${data.detail?.message || JSON.stringify(data)}</p>`;
+        }
+    } catch (err) {
+        resDiv.innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+    }
+});
+</script>
+{% endblock %}

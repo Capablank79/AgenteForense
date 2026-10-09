@@ -1,10 +1,14 @@
-casos/
-.pytest_cache/
-__pycache__/
-*.pyc
 .venv/
 venv/
 .env
+.env.*
+!.env.example
+*.dump
+*.backup
+casos/
+__pycache__/
+.pytest_cache/
+*.pyc
 
 *.E01
 *.E02

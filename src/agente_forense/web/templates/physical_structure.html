@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Estructura Física del Caso — Agente Forense{% endblock %}
+
+{% block content %}
+<h2>Estructura Física del Caso: RUC → NUE → ESPECIE → DSM</h2>
+
+<div class="alert-info">
+    <strong>Flujo de Inspección Física (P05):</strong> Valide la estructura física real del caso respetando la jerarquía forense canónica (RUC → NUE → ESPECIE → DSM). Defina la relación de almacenamiento (<code>SELF_STORAGE</code> o <code>CONTAINED_STORAGE</code>) para cada especie y confirme los datos observados antes de materializar el caso definitivo.
+</div>
+
+<!-- 1. Cargar borrador o seleccionar petitorio aprobado -->
+<div class="card" id="cardSelector">
+    <h3>1. Seleccionar Oficio Petitorio Aprobado / Borrador</h3>
+    <form id="formLoadDraft">
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">ID de Documento de Petitorio Aprobado:</label>
+            <input type="text" id="inputDocId" placeholder="Ej: uuid-del-documento" style="width: 100%; max-width: 400px; padding: 0.4rem;" required>
+        </div>
+        <button type="submit" class="btn">Cargar Estructura Preliminar (Draft)</button>
+    </form>
+    <div id="loadStatus" style="margin-top: 1rem;"></div>
+</div>
+
+<!-- 2. Resumen Inicial y Comparación Documental vs Física -->
+<div class="card" id="cardStructure" style="display: none; margin-top: 1.5rem;">
+    <h3>2. Definición y Confirmación de Estructura Física</h3>
+    
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem;">
+        <h4 style="margin-top: 0; color: #1e293b;">Datos Generales de la Causa (Declarados)</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.95rem;">
+            <div><strong>RUC:</strong> <span id="lblRuc">-</span></div>
+            <div><strong>Unidad Solicitante:</strong> <span id="lblUnit">-</span></div>
+            <div><strong>N° Oficio:</strong> <span id="lblOficio">-</span></div>
+            <div><strong>Fiscalía:</strong> <span id="lblProsecutor">-</span></div>
+        </div>
+    </div>
+
+    <form id="formPhysicalStructure">
+        <div id="nuesContainer"></div>
+
+        <div id="conflictsSummary" style="display: none; margin-top: 1.5rem; background: #fee2e2; border: 1px solid #f87171; padding: 1rem; border-radius: 6px; color: #991b1b;">
+            <strong>Conflictos / Incongruencias Detectadas:</strong>
+            <ul id="conflictsList" style="margin-top: 0.5rem; margin-bottom: 0;"></ul>
+        </div>
+
+        <div style="display: flex; gap: 1rem; align-items: center; margin-top: 2rem;">
+            <button type="button" class="btn" id="btnValidateStructure" style="background-color: #475569;">Validar Estructura</button>
+            <button type="button" class="btn" id="btnConfirmStructure" style="background-color: #16a34a;" disabled>Confirmar Estructura Física y Crear Caso</button>
+        </div>
+    </form>
+    
+    <div id="structureResult" style="margin-top: 1rem;"></div>
+</div>
+
+<script>
+let currentDraftData = null;
+let currentStructure = {
+    ruc: "",
+    requesting_unit: "",
+    requesting_rut: "",
+    request_type: "",
+    nues: []
+};
+
+// Si viene doc_id por query string, cargarlo
+document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('doc_id');
+    if (docId) {
+        document.getElementById('inputDocId').value = docId;
+        loadDraft(docId);
+    }
+});
+
+document.getElementById('formLoadDraft').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const docId = document.getElementById('inputDocId').value.trim();
+    if (docId) loadDraft(docId);
+});
+
+async function loadDraft(docId) {
+    const statusDiv = document.getElementById('loadStatus');
+    statusDiv.innerHTML = '<p>Cargando borrador desde el petitorio...</p>';
+
+    try {
+        const res = await csrfFetch(`/api/petitions/${docId}/build-draft`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            currentDraftData = data;
+            statusDiv.innerHTML = '<p style="color: green;">✔ Borrador cargado exitosamente.</p>';
+            initPhysicalStructure(data);
+        } else {
+            statusDiv.innerHTML = `<p style="color: red;">❌ Error: ${data.detail?.message || JSON.stringify(data)}</p>`;
+        }
+    } catch (err) {
+        statusDiv.innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+    }
+}
+
+function initPhysicalStructure(draft) {
+    document.getElementById('cardStructure').style.display = 'block';
+    document.getElementById('lblRuc').innerText = draft.ruc || 'N/A';
+    document.getElementById('lblUnit').innerText = draft.requesting_unit || 'N/A';
+    document.getElementById('lblOficio').innerText = draft.oficio_number || 'N/A';
+    document.getElementById('lblProsecutor').innerText = draft.prosecutor_office || 'N/A';
+
+    currentStructure.ruc = draft.ruc;
+    currentStructure.requesting_unit = draft.requesting_unit;
+    currentStructure.requesting_rut = draft.requesting_rut;
+    currentStructure.request_type = "FORENSIC_INSPECTION";
+
+    // Mapear NUEs del borrador
+    currentStructure.nues = (draft.nues || []).map(nue => {
+        return {
+            nue_number: nue.nue_number,
+            description_from_petition: nue.description_from_petition || "",
+            species: [
+                // Por defecto creamos Especie 1 inicial para cada NUE en estado SELF_STORAGE
+                {
+                    species_number: 1,
+                    storage_relation: "SELF_STORAGE",
+                    description: nue.description_from_petition || "",
+                    dsms: [
+                        {
+                            dsm_number: 1,
+                            same_physical_object_as_species: true,
+                            device_type: nue.declared_evidence_type || "DESCONOCIDO",
+                            brand: nue.attributes_from_petition?.brand || null,
+                            model: nue.attributes_from_petition?.model || null,
+                            serial: nue.attributes_from_petition?.serial || null,
+                            capacity_bytes: null
+                        }
+                    ]
+                }
+            ]
+        };
+    });
+
+    renderStructureUI();
+}
+
+function renderStructureUI() {
+    const container = document.getElementById('nuesContainer');
+    container.innerHTML = '';
+
+    currentStructure.nues.forEach((nue, nIdx) => {
+        const nueCard = document.createElement('div');
+        nueCard.style.cssText = 'border: 2px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; background: #fff;';
+
+        let speciesHtml = '';
+        nue.species.forEach((sp, spIdx) => {
+            const spLabel = `NUE_${nue.nue_number}_ESPECIE${sp.species_number}`;
+            
+            let dsmsHtml = '';
+            sp.dsms.forEach((dsm, dsmIdx) => {
+                const dsmLabel = `${spLabel}_DSM${dsm.dsm_number}`;
+                dsmsHtml += `
+                    <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.75rem; margin-top: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <strong style="color: #334155;">DSM: <code>${dsmLabel}</code></strong>
+                            ${sp.storage_relation === 'CONTAINED_STORAGE' ? `<button type="button" class="btn" style="background-color: #ef4444; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="removeDSM(${nIdx}, ${spIdx}, ${dsmIdx})">Eliminar DSM</button>` : '<span style="font-size: 0.8rem; color: #64748b;">(Mismo objeto que la especie)</span>'}
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem;">
+                            <div>
+                                <label style="font-size: 0.75rem; display: block;">Tipo Dispositivo:</label>
+                                <input type="text" value="${dsm.device_type || ''}" onchange="updateDSMField(${nIdx}, ${spIdx}, ${dsmIdx}, 'device_type', this.value)" style="width: 100%; padding: 0.25rem; font-size: 0.85rem;">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.75rem; display: block;">Marca Observada:</label>
+                                <input type="text" value="${dsm.brand || ''}" onchange="updateDSMField(${nIdx}, ${spIdx}, ${dsmIdx}, 'brand', this.value)" style="width: 100%; padding: 0.25rem; font-size: 0.85rem;">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.75rem; display: block;">Modelo Observado:</label>
+                                <input type="text" value="${dsm.model || ''}" onchange="updateDSMField(${nIdx}, ${spIdx}, ${dsmIdx}, 'model', this.value)" style="width: 100%; padding: 0.25rem; font-size: 0.85rem;">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.75rem; display: block;">N° Serie Observado:</label>
+                                <input type="text" value="${dsm.serial || ''}" onchange="updateDSMField(${nIdx}, ${spIdx}, ${dsmIdx}, 'serial', this.value)" style="width: 100%; padding: 0.25rem; font-size: 0.85rem;">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            speciesHtml += `
+                <div style="border: 1px solid #94a3b8; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #fafafa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h4 style="margin: 0; color: #0f172a;">Etiqueta Especie: <code style="color: #2563eb;">${spLabel}</code></h4>
+                        <button type="button" class="btn" style="background-color: #ef4444; padding: 0.25rem 0.6rem; font-size: 0.8rem;" onclick="removeSpecies(${nIdx}, ${spIdx})">Eliminar Especie</button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Relación de Almacenamiento (StorageRelation):</label>
+                            <select onchange="updateStorageRelation(${nIdx}, ${spIdx}, this.value)" style="padding: 0.35rem; width: 100%; font-weight: 600;">
+                                <option value="SELF_STORAGE" ${sp.storage_relation === 'SELF_STORAGE' ? 'selected' : ''}>SELF_STORAGE (Mismo objeto físico)</option>
+                                <option value="CONTAINED_STORAGE" ${sp.storage_relation === 'CONTAINED_STORAGE' ? 'selected' : ''}>CONTAINED_STORAGE (Contiene DSMs diferenciables)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Descripción Observada en Inspección Física:</label>
+                            <input type="text" value="${sp.description || ''}" onchange="updateSpeciesDescription(${nIdx}, ${spIdx}, this.value)" style="padding: 0.35rem; width: 100%; box-sizing: border-box;" placeholder="Descripción física real observada por el operador">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <strong style="font-size: 0.9rem; color: #1e293b;">Dispositivos de Almacenamiento Digital (DSM)</strong>
+                            ${sp.storage_relation === 'CONTAINED_STORAGE' ? `<button type="button" class="btn" style="background-color: #475569; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="addDSM(${nIdx}, ${spIdx})">+ Agregar DSM</button>` : ''}
+                        </div>
+                        ${dsmsHtml}
+                    </div>
+                </div>
+            `;
+        });
+
+        nueCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                <h3 style="margin: 0; color: #1e293b;">NUE: <span style="color: #2563eb;">${nue.nue_number}</span></h3>
+            </div>
+            <div style="font-size: 0.9rem; color: #475569; margin-bottom: 1rem; background: #eff6ff; padding: 0.75rem; border-radius: 4px;">
+                <strong>Descripción declarada en Petitorio:</strong> ${nue.description_from_petition || '(Sin descripción declarada)'}
+            </div>
+            <div>
+                ${speciesHtml}
+            </div>
+            <button type="button" class="btn" style="margin-top: 1rem; background-color: #3b82f6; padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="addSpecies(${nIdx})">+ Agregar Especie a NUE ${nue.nue_number}</button>
+        `;
+
+        container.appendChild(nueCard);
+    });
+}
+
+function updateStorageRelation(nIdx, spIdx, val) {
+    const sp = currentStructure.nues[nIdx].species[spIdx];
+    sp.storage_relation = val;
+    if (val === 'SELF_STORAGE') {
+        sp.dsms = [
+            {
+                dsm_number: 1,
+                same_physical_object_as_species: true,
+                device_type: sp.dsms[0]?.device_type || "DESCONOCIDO",
+                brand: sp.dsms[0]?.brand || null,
+                model: sp.dsms[0]?.model || null,
+                serial: sp.dsms[0]?.serial || null,
+                capacity_bytes: null
+            }
+        ];
+    } else if (val === 'CONTAINED_STORAGE' && sp.dsms.length === 0) {
+        sp.dsms.push({
+            dsm_number: 1,
+            same_physical_object_as_species: false,
+            device_type: "DISCO_INTERNO",
+            brand: null,
+            model: null,
+            serial: null,
+            capacity_bytes: null
+        });
+    }
+    renderStructureUI();
+}
+
+function updateSpeciesDescription(nIdx, spIdx, val) {
+    currentStructure.nues[nIdx].species[spIdx].description = val;
+}
+
+function updateDSMField(nIdx, spIdx, dsmIdx, field, val) {
+    currentStructure.nues[nIdx].species[spIdx].dsms[dsmIdx][field] = val || null;
+}
+
+function addSpecies(nIdx) {
+    const nue = currentStructure.nues[nIdx];
+    const newSpNum = nue.species.length + 1;
+    nue.species.push({
+        species_number: newSpNum,
+        storage_relation: "SELF_STORAGE",
+        description: "",
+        dsms: [
+            {
+                dsm_number: 1,
+                same_physical_object_as_species: true,
+                device_type: "DESCONOCIDO",
+                brand: null,
+                model: null,
+                serial: null,
+                capacity_bytes: null
+            }
+        ]
+    });
+    renderStructureUI();
+}
+
+function removeSpecies(nIdx, spIdx) {
+    const nue = currentStructure.nues[nIdx];
+    nue.species.splice(spIdx, 1);
+    // Renumerar especies correlativamente
+    nue.species.forEach((sp, idx) => {
+        sp.species_number = idx + 1;
+    });
+    renderStructureUI();
+}
+
+function addDSM(nIdx, spIdx) {
+    const sp = currentStructure.nues[nIdx].species[spIdx];
+    const newDsmNum = sp.dsms.length + 1;
+    sp.dsms.push({
+        dsm_number: newDsmNum,
+        same_physical_object_as_species: false,
+        device_type: "DISCO_INTERNO",
+        brand: null,
+        model: null,
+        serial: null,
+        capacity_bytes: null
+    });
+    renderStructureUI();
+}
+
+function removeDSM(nIdx, spIdx, dsmIdx) {
+    const sp = currentStructure.nues[nIdx].species[spIdx];
+    sp.dsms.splice(dsmIdx, 1);
+    sp.dsms.forEach((dsm, idx) => {
+        dsm.dsm_number = idx + 1;
+    });
+    renderStructureUI();
+}
+
+// Validar draft contra API /api/cases/draft
+document.getElementById('btnValidateStructure').addEventListener('click', async () => {
+    const resDiv = document.getElementById('structureResult');
+    resDiv.innerHTML = '<p>Validando topología estructural...</p>';
+    const btnConfirm = document.getElementById('btnConfirmStructure');
+
+    try {
+        const payload = {
+            ...currentStructure,
+            confirmed_by_human: false
+        };
+        const res = await csrfFetch('/api/cases/draft', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            resDiv.innerHTML = `<p style="color: green; font-weight: 600;">✔ Validado correctamente: ${data.message}</p>`;
+            btnConfirm.disabled = false;
+        } else {
+            resDiv.innerHTML = `<p style="color: red; font-weight: 600;">❌ Error de validación: ${data.detail?.message || JSON.stringify(data)}</p>`;
+            btnConfirm.disabled = true;
+        }
+    } catch (err) {
+        resDiv.innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+        btnConfirm.disabled = true;
+    }
+});
+
+// Confirmación Humana Explícita y Persistencia
+document.getElementById('btnConfirmStructure').addEventListener('click', async () => {
+    if (!confirm("¿Confirma la estructura física real del caso? Esta acción materializará transaccionalmente el Caso, las NUEs, Especies y DSMs en PostgreSQL de forma definitiva.")) return;
+
+    const resDiv = document.getElementById('structureResult');
+    resDiv.innerHTML = '<p>Persistiendo estructura física del caso...</p>';
+
+    try {
+        const payload = {
+            ...currentStructure,
+            confirmed_by_human: true
+        };
+        const res = await csrfFetch('/api/cases', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            resDiv.innerHTML = `<div style="background: #f0fdf4; border: 1px solid #86efac; color: #166534; padding: 1rem; border-radius: 6px;">
+                <h4 style="margin-top: 0;">✔ Caso Creado y Estructura Física Materializada Exitosamente</h4>
+                <p><strong>Case ID:</strong> <code>${data.case_id}</code></p>
+                <p><strong>RUC:</strong> <code>${data.ruc}</code></p>
+                <p><strong>case.json:</strong> <code>${data.case_json_path}</code></p>
+                <a href="/cases/${data.case_id}" class="btn" style="background-color: #2563eb; display: inline-block; margin-top: 0.5rem;">Ver Detalle del Caso</a>
+            </div>`;
+        } else {
+            resDiv.innerHTML = `<p style="color: red; font-weight: 600;">❌ Error al crear caso: ${data.detail?.message || JSON.stringify(data)}</p>`;
+        }
+    } catch (err) {
+        resDiv.innerHTML = `<p style="color: red;">❌ Error de red: ${err.message}</p>`;
+    }
+});
+</script>
+{% endblock %}
